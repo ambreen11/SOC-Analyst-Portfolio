@@ -1,0 +1,137 @@
+# 🔐 SOC Case Study: Brute Force Detection Using Splunk
+
+## 📌 Overview
+
+This case study demonstrates the detection and analysis of a brute-force attack using Windows event logs forwarded to Splunk Enterprise. The objective is to simulate real-world SOC analyst responsibilities, including log analysis, alert validation, and risk classification.
+
+---
+
+## 🧱 Lab Architecture
+
+* **Log Source:** Windows 10 Machine
+* **SIEM Platform:** Splunk Enterprise (Windows 11)
+* **Log Forwarding:** Splunk Universal Forwarder
+* **Log Type:** Windows Security Event Logs
+
+---
+
+## 🎯 Objective
+
+* Detect multiple failed login attempts
+* Identify successful login after failures
+* Determine if activity indicates brute-force attack
+* Classify alert severity
+
+---
+
+## 🔍 Investigation Steps
+
+### 1. Log Collection
+
+Logs from the Windows 10 machine were forwarded to Splunk Enterprise using the Universal Forwarder.
+
+### 2. Event Identification
+
+The following Windows Event IDs were analyzed:
+
+| Event ID | Description          |
+| -------- | -------------------- |
+| 4625     | Failed login attempt |
+| 4624     | Successful login     |
+| 4672     | Privileged login     |
+
+---
+
+### 3. Detection of Suspicious Activity
+
+Multiple Event ID 4625 entries were observed within a short time frame for the same user account. Shortly after, an Event ID 4624 (successful login) was recorded.
+
+This sequence indicates a potential brute-force attack where repeated login attempts eventually resulted in successful authentication.
+
+---
+
+## 📊 Splunk Queries Used
+
+### 🔹 Failed & Successful Logins
+
+```spl
+index=wineventlog (EventCode=4625 OR EventCode=4624)
+| table _time, EventCode, Account_Name, src_ip, host
+| sort _time
+```
+
+### 🔹 Detect Multiple Failed Attempts
+
+```spl
+index=wineventlog EventCode=4625
+| stats count as failed_attempts by Account_Name, src_ip
+| where failed_attempts > 5
+| sort -failed_attempts
+```
+
+### 🔹 Correlation (Failed → Success)
+
+```spl
+index=wineventlog (EventCode=4625 OR EventCode=4624)
+| transaction Account_Name maxspan=5m
+| search EventCode=4625 EventCode=4624
+| table _time, Account_Name, src_ip, EventCode
+```
+
+### 🔹 Check Privileged Access
+
+```spl
+index=wineventlog EventCode=4672
+| table _time, Account_Name, src_ip, host
+| sort _time
+```
+
+---
+
+## ⚠️ Analysis
+
+* Multiple failed login attempts suggest password guessing activity
+* A successful login shortly after indicates possible credential compromise
+* No immediate evidence of privilege escalation was observed
+
+---
+
+## 🚨 Alert Classification
+
+* **Alert Type:** Brute Force Attack
+* **Status:** True Positive
+* **Severity:** Medium
+
+### Justification:
+
+* Successful login occurred after multiple failures
+* No signs of lateral movement or privilege escalation
+* Activity limited to a single system
+
+---
+
+## 🔐 MITRE ATT&CK Mapping
+
+| Technique      | ID    |
+| -------------- | ----- |
+| Brute Force    | T1110 |
+| Valid Accounts | T1078 |
+
+---
+
+## 🛡️ Recommendations
+
+* Enforce account lockout policies
+* Enable multi-factor authentication (MFA)
+* Monitor login attempts and alert thresholds
+* Investigate source IP for malicious activity
+
+---
+
+## 📚 Key Takeaways
+
+* Correlation of failed and successful logins is critical in SOC analysis
+* Event IDs 4625 and 4624 are essential for authentication monitoring
+* Splunk enables efficient detection and investigation of attack patterns
+
+---
