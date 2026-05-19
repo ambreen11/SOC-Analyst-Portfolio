@@ -1,0 +1,155 @@
+During routine network monitoring, multiple anomalous activities were identified within a 10-minute packet capture. These included:
+
+Port scanning behavior from an internal host
+Repeated failed authentication attempts followed by a successful login
+Periodic DNS queries exhibiting beaconing characteristics
+Suspicious outbound HTTP traffic indicating possible data exfiltration
+
+The combined evidence suggests a multi-stage attack scenario, potentially involving reconnaissance, brute-force compromise, command-and-control (C2) communication, and data exfiltration.
+
+2. Environment Overview
+Component	Details
+SIEM	Splunk Enterprise (Windows 11)
+Target System	Windows 10 (log forwarder enabled)
+Attacker Node	Kali Linux
+Tools Used	Wireshark, Splunk, Nmap, Hydra
+Capture Duration	10 minutes
+3. Investigation Timeline
+Time (Approx)	Activity
+T+0 min	Network baseline capture started
+T+1 min	Port scanning activity detected
+T+3 min	Multiple failed login attempts observed
+T+4 min	Successful authentication event
+T+6 min	Periodic DNS queries begin (beaconing pattern)
+T+8 min	Suspicious HTTP POST request observed
+T+10 min	Capture ended
+4. Detailed Findings
+4.1 Reconnaissance Activity (Port Scan)
+
+Observation:
+
+Multiple TCP SYN packets sent to various ports on the target system
+No completion of TCP 3-way handshake
+
+Wireshark Filter Used:
+
+tcp.flags.syn == 1 && tcp.flags.ack == 0
+
+Analysis:
+
+This behavior is consistent with SYN scan techniques commonly used by attackers to identify open ports.
+
+Conclusion:
+
+Confirmed reconnaissance phase of an attack.
+4.2 Brute Force Attack Detection
+
+Observation (Splunk Logs):
+
+Multiple failed login attempts (Event ID 4625)
+Followed by a successful login (Event ID 4624)
+
+Splunk Query:
+
+index=windows_logs EventCode=4625 OR EventCode=4624
+| stats count by EventCode, Account_Name, src_ip
+
+Analysis:
+
+High frequency of failed logins followed by success strongly indicates brute-force attack success.
+
+Conclusion:
+
+Account compromise likely occurred
+4.3 DNS Beaconing Behavior (C2 Communication)
+
+Observation:
+
+Repeated DNS queries at regular intervals
+Queries to dynamically generated/random-looking subdomains
+
+Wireshark Filter:
+
+dns
+
+Analysis:
+
+Periodic pattern suggests automated beaconing
+Random subdomains indicate possible DGA-based malware
+
+Conclusion:
+
+Strong indicator of Command-and-Control (C2) communication
+4.4 Suspicious HTTP Activity (Potential Data Exfiltration)
+
+Observation:
+
+HTTP POST request to external server
+Unusual endpoint and data in payload
+
+Wireshark Filter:
+
+http.request.method == "POST"
+
+Analysis:
+
+POST requests used to transmit data externally
+Destination not recognized as trusted service
+
+Conclusion:
+
+Possible data exfiltration attempt
+5. Correlation Analysis
+
+The events were correlated across network and log sources:
+
+Activity	Evidence Source	Validation
+Port Scan	Wireshark	SYN scan pattern
+Brute Force	Splunk	Event IDs 4625 → 4624
+C2 Beaconing	Wireshark	Periodic DNS queries
+Data Exfiltration	Wireshark	HTTP POST traffic
+
+Key Insight:
+
+The sequence of events aligns with the Cyber Kill Chain:
+
+Reconnaissance → Initial Access → Persistence (C2) → Exfiltration
+6. Indicators of Compromise (IOCs)
+Type	Indicator
+IP Address	<attacker_ip>
+DNS Pattern	*.malicious-test.xyz
+Protocol	DNS, HTTP
+Behavior	Repeated login failures, beaconing interval traffic
+7. Risk Assessment
+Factor	Severity
+Account Compromise	High
+C2 Communication	High
+Data Exfiltration	Critical
+Network Exposure	Medium
+
+Overall Severity: 🔴 High
+
+8. Response Actions Taken
+Identified and isolated affected host
+Blocked suspicious IP/domain at firewall
+Disabled compromised account
+Initiated password reset policy
+Logged incident for further forensic analysis
+9. Recommendations
+Immediate
+Enforce account lockout policies
+Block identified malicious domains/IPs
+Monitor DNS traffic for beaconing patterns
+Short-Term
+Enable endpoint detection & response (EDR)
+Deploy threat intelligence feeds
+Increase log retention and monitoring
+Long-Term
+Implement Zero Trust architecture
+Conduct regular threat hunting exercises
+Establish network traffic baselines
+10. Lessons Learned
+Correlating network traffic + SIEM logs significantly improves detection accuracy
+Beaconing detection is critical for identifying stealthy malware
+Even short captures (10 minutes) can reveal full attack patterns
+Proactive monitoring reduces dwell time of attackers
